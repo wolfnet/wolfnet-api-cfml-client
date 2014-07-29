@@ -181,24 +181,26 @@
 				<cfcatch type="any">
 					<cfthrow type="wolfnet.api.client.InvalidJsonResponse"
 					 		  message="An error occurred while attempting to deserialize the JSON API response."
-					 		  extendedInfo=serializeJSON(apiResponse) />
+					 		  extendedInfo="#serializeJSON(apiResponse)#" />
 				</cfcatch>
 
 			</cftry>
 
 		</cfif>
 
+
+
 		<!--- The API returned a 401 Unauthorized so throw an exception. --->
 		<cfif apiResponse.responseStatusCode eq 401>
 			<cfthrow type = "wolfnet.api.client.Unauthorized"
-					 message = httpResponse.status_text
-					 extendedInfo = serializeJSON(apiResponse) />
+					 message = "#httpResponse.status_text#"
+					 extendedInfo = "#serializeJSON(apiResponse)#" />
 
 		<!--- The API returned a 403 Forbidden so throw an exception --->
 		<cfelseif apiResponse.responseStatusCode eq 403>
 			<cfthrow type = "wolfnet.api.client.Forbidden"
-					 message = httpResponse.status_text
-					 extendedInfo = serializeJSON(apiResponse) />
+					 message = "#httpResponse.status_text#"
+					 extendedInfo = "#serializeJSON(apiResponse)#" />
 
 		<!--- The API returned a 400 Bad Response because the token it was given was not valid, so attempt to re-authenticated and perform the request again. --->
 		<cfelseif apiResponse.responseStatusCode eq 400 && apiResponse.responseData.metadata.status.errorCode eq "Auth1005" && !arguments.reAuth>
@@ -207,8 +209,8 @@
 		<!--- We received an unexpected response from the API so throw an exception. --->
 		<cfelseif apiResponse.responseStatusCode neq 200>
 			<cfthrow type = "wolfnet.api.client.BadResponse"
-					 message = httpResponse.status_text
-					 extendedInfo = serializeJSON(apiResponse) />
+					 message = "#apiResponse.responsedata.metadata.status.message#"
+					 extendedInfo = "#serializeJSON(apiResponse)#" />
 
 		</cfif>
 
@@ -323,6 +325,11 @@
 		<cfset var requestArgs = structNew() />
 
 		<cfscript>
+
+			if (!arguments.force){
+				token =  retrieveApiTokenDataFromCache(arguments.key);
+			}
+
 			// If a token was not retrieved from the cache perform an API request to retrieve a new one.
 			if (token eq "") {
 				data = {
