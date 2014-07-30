@@ -93,30 +93,31 @@
 		<cfset var apiResponse = "" />
 
 
+		<cfset arguments.method = uCase(arguments.method) />
+
+		<!--- Make sure the resource is valid. --->
+		<cfif !isValidResource(arguments.resource)>
+			<cfthrow type="wolfnet.api.client.InvalidResource"
+					 		  message="Invalid resource provided for API request."
+					 		  extendedInfo="#serializeJSON(arguments)#" />
+		</cfif>
+
+		<!--- Make sure the method is valid. --->
+		<cfif !isValidMethod(arguments.method)>
+			<cfthrow type="wolfnet.api.client.InvalidResource"
+					 		  message="Invalid method provided for API request."
+					 		  extendedInfo="#serializeJSON(arguments)#" />
+		</cfif>
+
+		<!--- Make sure the data is valid. --->
+		<cfif !isValidData(arguments.data)>
+			<cfthrow type="wolfnet.api.client.InvalidData"
+					 		  message="Invalid data provided for API request."
+					 		  extendedInfo="#serializeJSON(arguments)#" />
+		</cfif>
+
+
 		<cfscript>
-
-			arguments.method = uCase(arguments.method);
-
-			// Make sure the resource is valid.
-			if (!isValidResource(arguments.resource)) {
-				throw(type="wolfnet.api.client.InvalidResource",
-					message="Invalid resource provided for API request.",
-					extendedInfo=serializeJSON(arguments));
-			}
-
-			// Make sure the method is valid.
-			if (!isValidMethod(arguments.method)) {
-				throw(type="wolfnet.api.client.InvalidMethod",
-					message="Invalid method provided for API request.",
-					extendedInfo=serializeJSON(arguments));
-			}
-
-			// Make sure the data is valid.
-			if (!isValidData(arguments.data)) {
-				throw(type="wolfnet.api.client.InvalidData",
-					message="Invalid data provided for API request.",
-					extendedInfo=serializeJSON(arguments));
-			}
 
 			// Retrieve a fully qualified URL for the request based on the requested resource.
 			fullUrl = buildFullUrl(arguments.resource);
@@ -204,7 +205,8 @@
 
 		<!--- The API returned a 400 Bad Response because the token it was given was not valid, so attempt to re-authenticated and perform the request again. --->
 		<cfelseif apiResponse.responseStatusCode eq 400 && apiResponse.responseData.metadata.status.errorCode eq "Auth1005" && !arguments.reAuth>
-			return rawRequest(argumentCollection=arguments, reAuth=true);
+
+			<cfreturn rawRequest(argumentCollection=arguments, reAuth=true) />
 
 		<!--- We received an unexpected response from the API so throw an exception. --->
 		<cfelseif apiResponse.responseStatusCode neq 200>
