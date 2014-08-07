@@ -206,7 +206,12 @@ component accessors="true"
 				extendedInfo=serializeJSON(apiResponse));
 
 		// The API returned a 400 Bad Response because the token it was given was not valid, so attempt to re-authenticated and perform the request again.
-		} else if (apiResponse.responseStatusCode == 400 && apiResponse.responseData.metadata.status.errorCode == "Auth1005" && !arguments.reAuth) {
+		} else if (apiResponse.responseStatusCode == 400
+			&& (
+				(structKeyExists(apiResponse.responseData.metadata.status, "errorCode") && apiResponse.responseData.metadata.status.errorCode == "Auth1005")
+				|| (structKeyExists(apiResponse.responseData.metadata.status, "statusCode") && apiResponse.responseData.metadata.status.statusCode == "Auth1005")
+			)
+			&& !arguments.reAuth) {
 			return rawRequest(argumentCollection=arguments, reAuth=true);
 
 		// We received an unexpected response from the API so throw an exception.
