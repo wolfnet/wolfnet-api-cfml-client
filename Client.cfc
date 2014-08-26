@@ -22,6 +22,12 @@ component accessors="true"
 	 */
 	property name="version" type="string";
 
+	/**
+	 * The timeout to apply to HTTP requests to the API.
+	 * @type {numeric}
+	 */
+	property name="timeout" type="numeric";
+
 
 	/* CONSTRUCTOR ****************************************************************************** */
 
@@ -31,10 +37,11 @@ component accessors="true"
 	 * @param  {string} version    The version of the API to make requests of.
 	 * @return {Client}            A reference to the object being initialized.
 	 */
-	public Client function init(string host="api.wolfnet.com", string version="1")
+	public Client function init(string host="api.wolfnet.com", string version="1", numeric timeout=500)
 	{
 		setHost(arguments.host);
 		setVersion(arguments.version);
+		setTimeout(arguments.timeout);
 
 		variables.appScopeKey = "WolfNetApiTokens";
 
@@ -127,6 +134,7 @@ component accessors="true"
 
 		// Start building an HTTP object for making the request.
 		var httpObj = new http();
+		httpObj.setTimeOut(getTimeout());
 		httpObj.setUrl(fullUrl);
 		httpObj.setMethod(arguments.method);
 		httpObj.addParam(type="header", name="Accept", value="application/json");
