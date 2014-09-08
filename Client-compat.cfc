@@ -92,6 +92,7 @@
 		<cfset var httpPrefix = "" />
 		<cfset var apiResponse = "" />
 
+		<cfsetting requestTimeOut="65" >
 
 		<cfset arguments.method = uCase(arguments.method) />
 
@@ -130,7 +131,7 @@
 		</cfscript>
 
 
-		<cfhttp method="#arguments.method#" url="#fullUrl#" result="httpResponse">
+		<cfhttp method="#arguments.method#" url="#fullUrl#" result="httpResponse" timeout="60">
 			<cfhttpparam type="header" name="Accept" value="application/json" />
 
 			<cfswitch expression="#arguments.method#">
@@ -210,9 +211,15 @@
 
 		<!--- We received an unexpected response from the API so throw an exception. --->
 		<cfelseif apiResponse.responseStatusCode neq 200>
-			<cfthrow type = "wolfnet.api.client.BadResponse"
-					 message = "#apiResponse.responsedata.metadata.status.message#"
-					 extendedInfo = "#serializeJSON(apiResponse)#" />
+			<cfif !IsDefined("apiResponse.responsedata.metadata.status.message")>
+				<cfthrow type = "wolfnet.api.client.BadResponse"
+						 message = "API Error"
+						 extendedInfo = "#serializeJSON(apiResponse)#" />
+			<cfelse>
+				<cfthrow type = "wolfnet.api.client.BadResponse"
+						 message = "#apiResponse.responsedata.metadata.status.message#"
+						 extendedInfo = "#serializeJSON(apiResponse)#" />
+			</cfif>
 
 		</cfif>
 
