@@ -172,7 +172,7 @@ component accessors="true"
 
 		if (!structKeyExists(httpPrefix, 'status_code')) {
 			throw(type="wolfnet.api.client.ConnectionFailure",
-				message="Unable to connected to the API server.",
+				message="Unable to connect to the API server.",
 				detail=serializeJSON(httpPrefix));
 		}
 
