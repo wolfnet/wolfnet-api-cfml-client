@@ -1,49 +1,60 @@
 /**
- * This component is a standalone CFML interface for the WolfNet API. This component should not rely
- * on any other code that is part of the WolfNet common repository.
+ * Client interface for the WolfNet API.
  *
- * @type {com.wolfnet.api.Client}
+ * This class is a ColdFusion implementation of the WolfNet API Client. It is used to
+ * make requests to the API and receive responses from the API. The scope of this class should not
+ * extend beyond basic HTTP communication. Any other logic such as caching should be accomplished
+ * by decorating or advising this class.
+ *
+ * In order for the API client to perform requests to the API it must first prove to the API that it
+ * has valid credentials to do so, namely a valid and active *API key*. With the API key the client
+ * can retrieve an API token (see API documentation) which is then used to make any subsequent
+ * requests.
  */
-component accessors="true"
+component
 {
 
 
 	/* PROPERTIES ******************************************************************************* */
 
 	/**
-	 * The hostname for the API server.
-	 * @type {string}
+	 * The hostname for the API where requests will be sent.
+	 * @type string
 	 */
-	property name="host" type="string";
+	property name="host";
 
 	/**
-	 * The version of the API to make requests of.
-	 * @type {string}
+	 * The API version that will be interacted with.
+	 * @type numeric
 	 */
-	property name="version" type="string";
+	property name="version";
 
-	/**
-	 * The timeout to apply to HTTP requests to the API.
-	 * @type {numeric}
-	 */
-	property name="timeout" type="numeric";
+	property name="logger";
 
 
 	/* CONSTRUCTOR ****************************************************************************** */
 
 	/**
-	 * This method is used to initialize the component.
-	 * @param  {string} host       The host name for the API server.
-	 * @param  {string} version    The version of the API to make requests of.
-	 * @return {Client}            A reference to the object being initialized.
+	 * Constructor Method
+	 *
+	 * This constructor method instantiates the ApiClient class and allows the consumer to specify
+	 * details about what API should be interacted with.
+	 *
+	 * @param string  host    The hostname for the API where requests will be sent.
+	 * @param integer version The API version that will be interacted with.
+	 *
+	 * @return Client
+	 *
 	 */
-	public Client function init(string host="api.wolfnet.com", string version="1", numeric timeout=500)
-	{
-		setHost(arguments.host);
-		setVersion(arguments.version);
-		setTimeout(arguments.timeout);
+	public Client function init(
+		string host="api.wolfnet.com",
+		numeric version=1
+	) {
 
-		variables.appScopeKey = "WolfNetApiTokens";
+		variables.host = arguments.host;
+		variables.version = arguments.version;
+
+		variables.timeout = 500; // HTTP Timeout in milliseconds
 
 		return this;
 
@@ -53,231 +64,241 @@ component accessors="true"
 	/* PUBLIC METHODS *************************************************************************** */
 
 	/**
-	 * This method is the public interface for making requests of the API.
-	 * @param  {string} key           The client's API key.
-	 * @param  {string} resource      The URI endpoint being requested from the API.
-	 * @param  {string} method="GET"  The HTTP method the request should be submitted as.
-	 * @param  {struct} data={}       Any query string or body data to be include with the request.
-	 * @param  {struct} headers={}    Any header data to be included with the request.
-	 * @return {struct}               A struct representation of the data that was returned successfully.
+	 * This method is used to authenticate with the API and retrieve an API token which is needed
+	 * to perform any other requests to the API.
+	 *
+	 * @param  string  key      API key to be used for authentication.
+	 * @param  struct  headers  The HTTP headers to be sent with the request.
+	 * @param  struct  options  Extra options that may be passed into the request. This parameter
+	 *                          mostly exists to facilitate the decorators.
+	 *
+	 * @return struct           The API response structure.
+	 *
+	 */
+	public struct function authenticate(
+		required string key,
+		struct headers={},
+		struct options={}
+	) {
+		var data = {
+			'key' = arguments.key,
+			'v' = variables.version,
+		};
+
+		return performRequest(
+			'/core/auth',
+			'POST',
+			data,
+			arguments.headers ?: {}
+			);
+
+	}
+
+
+	/**
+	 * This method makes pre-authenticated requests to the WolfNet API and returns the response.
+	 *
+	 * @param  string  token     The API token that should be used to the API requests.
+	 * @param  string  resource  The API endpoint the request should be made to.
+	 * @param  string  method    The HTTP verb that should be used to make the request.
+	 * @param  struct  data      Any data that should be passed along with the request.
+	 * @param  struct  headers   The HTTP headers to be sent with the request.
+	 * @param  struct  options   Extra options that may be passed into the request. This parameter
+	 *                           mostly exists to facilitate the decorators.
+	 *
+	 * @return struct            An array containing the HTTP response.
+	 *
 	 */
 	public struct function sendRequest(
-		required string key,
+		required string token,
 		required string resource,
-		string method="GET",
-		struct data={},
-		struct headers={}
+		required string method = "GET",
+		struct data = {},
+		struct headers = {},
+		struct options = {}
 	) {
-		return rawRequest(argumentCollection=arguments);
+
+		arguments.headers['api_token'] = arguments.token;
+
+		return performRequest(
+			arguments.resource,
+			arguments.method,
+			arguments.data,
+			arguments.headers
+			);
+
 	}
 
 
 	/* PRIVATE METHODS ************************************************************************** */
 
 	/**
-	 * This method is the private interface for making requests of the API. Notice that it includes
-	 * some extra parameters which are used by the client internally to automatically perform API
-	 * authentication tasks.
-	 * @param  {string}  key             The client's API key.
-	 * @param  {string}  resource        The URI endpoint being requested from the API.
-	 * @param  {string}  method="GET"    The HTTP method the request should be submitted as.
-	 * @param  {struct}  data={}         Any query string or body data to be include with the request.
-	 * @param  {struct}  headers={}      Any header data to be included with the request.
-	 * @param  {boolean} skipAuth=false  Should this request skip authentication with the API? This
-	 *                                   parameter is used as part of the automatic authentication
-	 *                                   process. The same function is used to perform authentication
-	 *                                   but should not be authenticated itself.
-	 * @param  {boolean} reAuth=false    Is this current function call an attempt to re-authenticate
-	 *                                   after an initial failed attempt to retrieve data from the API.
-	 *                                   This attempt will only be made once before throwing an exception.
-	 * @return {struct}                  A struct representation of the data that was returned successfully.
+	 * This method takes in request parameters and performs HTTP requests to the WolfNet API.
+	 *
+	 * @param  string  resource  The API endpoint the request should be made to.
+	 * @param  string  method    The HTTP verb that should be used to make the request.
+	 * @param  array   data      Any data that should be passed along with the request.
+	 * @param  array   headers   The HTTP headers to be sent with the request.
+	 *
+	 * @throws  wolfnet.api.client   This exception is thrown any time there is an issue
+	 *                               with the request. This exception should then be caught
+	 *                               later and displayed as a user friendly message.
+	 *
+	 * @return  struct  An array containing the HTTP response.
 	 */
-	private struct function rawRequest(
-		required string key,
+	private struct function performRequest(
 		required string resource,
-		string method="GET",
-		struct data={},
-		struct headers={},
-		boolean skipAuth=false,
-		boolean reAuth=false
+		required string method = "GET",
+		struct data = {},
+		struct headers = {}
 	) {
-		arguments.method = uCase(arguments.method);
 
-		// Make sure the resource is valid.
-		if (!isValidResource(arguments.resource)) {
-			throw(type="wolfnet.api.client.InvalidResource",
-				message="Invalid resource provided for API request.",
-				extendedInfo=serializeJSON(arguments));
-		}
+		this.log('info', 'Starting API request.', arguments);
 
 		// Make sure the method is valid.
 		if (!isValidMethod(arguments.method)) {
 			throw(type="wolfnet.api.client.InvalidMethod",
 				message="Invalid method provided for API request.",
-				extendedInfo=serializeJSON(arguments));
+				extendedInfo=serializeJSON(arguments)
+				);
 		}
 
-		// Make sure the data is valid.
-		if (!isValidData(arguments.data)) {
-			throw(type="wolfnet.api.client.InvalidData",
-				message="Invalid data provided for API request.",
-				extendedInfo=serializeJSON(arguments));
+		try {
+
+			var uri = uriFromResource(arguments.resource);
+
+			validateRequestData(arguments.data);
+
+		}
+		catch (wolfnet.api.client exception) {
+			throw(type=exception.type,
+				message=exception.message & ' While attempting request to (' & uri & ').',
+				detail=exception.detail,
+				extendedInfo=serializeJSON(arguments)
+				);
 		}
 
-		// Retrieve a fully qualified URL for the request based on the requested resource.
-		var fullUrl = buildFullUrl(arguments.resource);
+		// TODO: Implement CF HTTP request.
 
-		// Unless told otherwise, attempt to retrieve an API token.
-		if (!arguments.skipAuth) {
-			arguments.headers.api_token = getApiToken(arguments.key, arguments.reAuth);
-		}
-
-		// Start building an HTTP object for making the request.
 		var httpObj = new http();
-		httpObj.setTimeOut(getTimeout());
-		httpObj.setUrl(fullUrl);
+		httpObj.setTimeOut(variables.timeout);
+		httpObj.setUrl(uri);
 		httpObj.setMethod(arguments.method);
-		httpObj.addParam(type="header", name="Accept", value="application/json");
 
+		// For now the client will only accept JSON responses.
+		arguments.headers['Accept'] = 'application/json';
+		// Adding HTTP Encoding header.
+		arguments.headers['Accept-Encoding'] = 'gzip, deflate';
+
+		// Apply data to the requests
 		// Depending on the method we will pass data in the request differently.
 		switch (arguments.method) {
 
 			case "GET":
-				for (var key in arguments.data) {
-					httpObj.addParam(type="url", name=key, value=arguments.data[key]);
+				for (var dataKey in arguments.data) {
+					httpObj.addParam(type="url", name=dataKey, value=arguments.data[dataKey]);
 				}
 				break;
 
-			case "PUT":
-				httpObj.addParam(type="header", name="Content-Type", value="application/json");
-				httpObj.addParam(type="body", value=serializeJSON(arguments.data));
-				break;
-
 			case "POST":
-				for (var key in arguments.data) {
-					httpObj.addParam(type="formField", name=key, value=arguments.data[key]);
+				for (var dataKey in arguments.data) {
+					httpObj.addParam(type="formField", name=dataKey, value=arguments.data[dataKey]);
 				}
 				break;
 
 		}
 
 		// Append any header data to the HTTP object.
-		for (var key in arguments.headers) {
-			httpObj.addParam(type="header", name=key, value=arguments.headers[key]);
+		for (var headerKey in arguments.headers) {
+			httpObj.addParam(type="header", name=headerKey, value=arguments.headers[headerKey]);
 		}
 
 		// Perform the actual HTTP request.
 		var httpResponse = httpObj.send();
 		var httpPrefix = httpResponse.getPrefix();
 
-		if (!structKeyExists(httpPrefix, 'status_code')) {
-			throw(type="wolfnet.api.client.ConnectionFailure",
-				message="Unable to connect to the API server.",
-				detail=serializeJSON(httpPrefix));
+		try {
+			validateResponse(httpPrefix);
+		}
+		catch (wolfnet.api.client exception) {
+			throw(type=exception.type,
+				message=exception.message & ' While attempting request to (' & uri & ').',
+				detail=exception.detail,
+				extendedInfo=serializeJson(parseResponse(httpPrefix, uri, arguments.method, arguments.data)));
 		}
 
-		// Build a structure representation of the HTTP response from the API.
-		var apiResponse = {
-			requestUrl = fullUrl,
-			requestMethod = arguments.method,
-			requestData = arguments.data,
-			responseStatusCode = httpPrefix.status_code,
-			responseData = httpPrefix.filecontent,
-			timestamp = now(),
-		};
-
-		// If the response type is JSON attempt to deserialize the response body.
-		if (httpPrefix.mimetype == "application/json") {
-
-			try {
-				apiResponse.responseData = deserializeJSON(httpPrefix.filecontent);
-			}
-			catch (Any exception) {
-				throw(type="wolfnet.api.client.InvalidJsonResponse",
-					message="An error occurred while attempting to deserialize the JSON API response.",
-					extendedInfo=serializeJSON(apiResponse)
-					);
-			}
-
-		}
-
-		// The API returned a 401 Unauthorized so throw an exception.
-		if (apiResponse.responseStatusCode == 401) {
-			throw(type="wolfnet.api.client.Unauthorized",
-				message=httpPrefix.status_text,
-				extendedInfo=serializeJSON(apiResponse));
-
-		// The API returned a 403 Forbidden so throw an exception
-		} else if (apiResponse.responseStatusCode == 403) {
-			throw(type="wolfnet.api.client.Forbidden",
-				message=httpPrefix.status_text,
-				extendedInfo=serializeJSON(apiResponse));
-
-		// The API returned a 400 Bad Response because the token it was given was not valid, so attempt to re-authenticated and perform the request again.
-		} else if (apiResponse.responseStatusCode == 400
-			&& (
-				(structKeyExists(apiResponse.responseData.metadata.status, "errorCode") && apiResponse.responseData.metadata.status.errorCode == "Auth1005")
-				|| (structKeyExists(apiResponse.responseData.metadata.status, "statusCode") && apiResponse.responseData.metadata.status.statusCode == "Auth1005")
-			)
-			&& !arguments.reAuth) {
-			return rawRequest(argumentCollection=arguments, reAuth=true);
-
-		// We received an unexpected response from the API so throw an exception.
-		} else if (apiResponse.responseStatusCode != 200) {
-			throw(type="wolfnet.api.client.BadResponse",
-				message=httpPrefix.status_text,
-				extendedInfo=serializeJSON(apiResponse));
-
-		}
-
-		// If we made it this far return the API response data.
-		return apiResponse;
+		return parseResponse(httpPrefix, uri, arguments.method, arguments.data);
 
 	}
 
 
 	/**
-	 * This method uses the host value included during initialization and a resource string to create
-	 * a fully qualified API URL.
-	 * @param  {string}  resource  The URI endpoint being requested from the API.
-	 * @return {string}            A fully qualified API URL.
+	 * This method validates the data to be sent with the HTTP request.
+	 *
+	 * Specifically we are checking to make sure that the data which is being sent to the API can be
+	 * easily converted into a format which works with basic HTTP requests. This means we only want
+	 * Scalar values such as numbers, strings, and booleans.
+	 *
+	 * @param  array  data  The data to be validated.
+	 *
+	 * @throws Wolfnet_Api_ApiException  This exception is thrown if any of the data that was
+	 *                                   given does not meet the validation criteria.
+	 *
+	 * @return null
 	 */
-	private string function buildFullUrl(required string resource)
+	private void function validateRequestData(required struct data)
 	{
-		// TODO: The environment configuration needs to be updated to be only a host name and not include protocol.
-		// return "https://" & variables.apiHostName & arguments.resource;
-		return getHost() & arguments.resource;
+
+		// Loop over each key in the data and check if they are scalar (simple) values.
+		for (var dataKey in arguments.data) {
+
+			if (!isSimpleValue(arguments.data[dataKey])) {
+				throw(type='wolfnet.api.client.InvalidData',
+					message='Tried to send invalid data to the API.',
+					detail='[' & dataKey & '] is not a valid API argument. '
+					      & 'All API arguments must be scalar values. ');
+			}
+
+		}
 
 	}
 
 
 	/**
-	 * This method validates that a provided resource string is formatted correctly.
-	 * @param  {string}  resource  The URI endpoint being requested from the API.
-	 * @return {Boolean}           Is the resource valid? true/false
+	 * This method turns a resource string into a fully qualified URL using the API host and port
+	 * that were passed into the constructor of API Client class.
+	 *
+	 * @param  string  resource  The API resource (endpoint) be be converted to a URL.
+	 *
+	 * @return string            A fully qualified URL to the API.
+	 *
 	 */
-	private boolean function isValidResource(required string resource)
+	private string function uriFromResource(required string resource)
 	{
 		// TODO: Add more validation criteria.
 
 		// If the resource does not start with a leading slash it is not valid.
 		if (left(arguments.resource, 1) != "/") {
-			return false;
-		} else {
-			return true;
+			throw(type="wolfnet.api.client.InvalidResource",
+				message="Invalid resource provided for API request.");
 		}
+
+		return variables.host & arguments.resource;
 
 	}
 
 
 	/**
 	 * This method validates that a given method string matches one that is supported by the API.
+	 *
 	 * @param  {string}  method  The HTTP method the request should be submitted as.
+	 *
 	 * @return {Boolean}         Is the method valid? true/false
+	 *
 	 */
 	private boolean function isValidMethod(required string method)
 	{
-		if (listFindNoCase("GET,POST,PUT,DELETE", arguments.method) == 0) {
+		if (listFindNoCase('GET,POST,PUT,DELETE', arguments.method) == 0) {
 			return false;
 		} else {
 			return true;
@@ -287,122 +308,209 @@ component accessors="true"
 
 
 	/**
-	 * This method validates that the given data can be used with the API request.
-	 * @param  {struct}  data  Any query string or body data to be include with the request.
-	 * @return {Boolean}       Is the data valid? true/false
+	 * This method validates the HTTP response from the API. If the response does not pass validation
+	 * an exception is thrown which can be caught and acted upon later.
+	 *
+	 * @param  mixed  response  A response from the CF HTTP Request
+	 *
+	 * @return null
+	 *
 	 */
-	private boolean function isValidData(required struct data)
+	private function validateResponse(required struct response)
 	{
-		var valid = true;
 
-		// Ensure that only simple values are included in the data. ie. strings, numbers, and booleans.
-		for (var key in arguments.data) {
-			if (!isSimpleValue(arguments.data[key])) {
-				valid = false;
-				break;
+		if (!structKeyExists(arguments.response, 'status_code')) {
+			throw(type="wolfnet.api.client.ConnectionFailure",
+				message="Unable to connect to the API server.",
+				extendedInfo=serializeJSON(arguments.response));
+		}
+
+		var responseCode = arguments.response.status_code;
+
+		/**
+		 * This response code we received is not code 200. We don't know how to deal with this
+		 * response at this time so we will need to throw an exception.
+		 *
+		 * NOTE: At some point in the future we will probably need to make the client capable of
+		 * dealing with responses such as redirects.
+		 *
+		 */
+		if (responseCode != 200) {
+
+			var responseText = arguments.response.status_text ?: '';
+			var responseBody = arguments.response.filecontent ?: '{}';
+
+			try {
+				var responseData = deserializeJson(responseBody);
+			} catch (Any exception) {
+				throw(type="wolfnet.api.client.InvalidJsonResponse",
+					message="An error occurred while attempting to deserialize the JSON API response.",
+					extendedInfo=serializeJSON([formattedResponse, arguments.response])
+					);
 			}
-		}
 
-		return valid;
+			var metadata = responseData.metadata ?: {};
+			var status = metadata.status ?: {};
+			var errorCode = status.errorCode ?: '';
+			var statusCode = status.statusCode ?: '';
+			var errorID = status.error_id ?: '';
+			var extendedInfo = status.extendedInfo ?: '';
+
+			// TODO: These two variables are used repeatedly below. Could be done better.
+			var errorIDMessage = (errorID != '') ? 'API Error ID: ' & errorID : '';
+			var errorMessage = (extendedInfo != '') ? 'The API says: [' & extendedInfo & ']' : '';
+
+			// Here we will handle special API error responses.
+
+			/**
+			 * The API has indicated that the request was made without a valid API token so we will
+			 * throw a special exception that we can can catch and attempt to re-authenticate.
+			 */
+			var authErrorCode = 'Auth1005';
+			if (errorCode == authErrorCode || statusCode == authErrorCode) {
+				throw(type='wolfnet.api.client.Unauthorized.API',
+					message='Remote request was not authorized.',
+					detail='The WolfNet API has responded that it did not receive a valid API token.'
+					      & errorIDMessage & ' ' & errorMessage
+					);
+			}
+
+			/**
+			 * The API has indicated that the request was made but the data can only be accessed by
+			 * a user who has authenticated (double opt-in) their account.
+			 */
+			var userAuthErrorCode = 'Auth1004';
+			if (errorCode == userAuthErrorCode || statusCode == userAuthErrorCode) {
+				throw(type='wolfnet.api.client.Unauthorized.User',
+					message='User must be authenticated to view this information.',
+					detail='The WolfNet API has responded the data requested can only be viewed by '
+					      & 'a user that has authenticated their account. '
+					      & errorIDMessage & ' ' & errorMessage
+					);
+			}
+
+			// The API returned a 401 Unauthorized
+			if (responseCode == 401) {
+				throw(type='wolfnet.api.client.Unauthorized',
+					message='Remote request resulted in a [401 Unauthorized] response.',
+					detail='The WolfNet API has indicated that the request was made '
+					      & 'without properly authentication. '
+					      & errorIDMessage & ' ' & errorMessage
+					);
+			}
+
+			// The API returned a 500 Internal Server Error
+			if (responseCode == 500) {
+				throw(type='wolfnet.api.client.InteralServerError',
+					message='Remote request resulted in a [500 Internal Server Error] response.',
+					detail='The WolfNet API appears to be unresponsive at this time.'
+					      & errorIDMessage & ' ' & errorMessage
+					);
+			}
+
+			// The API returned a 503 Service Unavailable
+			if (responseCode == 503) {
+				throw(type='wolfnet.api.client.ServerUnavailable',
+					message='Remote request resulted in a [503 Service Unavailable] response.',
+					detail='The WolfNet API appears to be unresponsive at this time but should be back soon.'
+					      & errorIDMessage & ' ' & errorMessage
+					);
+			}
+
+			// The API returned a 403 Forbidden
+			if (responseCode == 403) {
+				throw(type='wolfnet.api.client.Forbidden',
+					message='Remote request resulted in a [403 Forbidden] response.',
+					detail='An attempt was made to request data that is not available to the key that '
+					      & 'was used to authenticate the request.'
+					      & errorIDMessage & ' ' & errorMessage
+					);
+			}
+
+			// The API returned a 400 Bad Response
+			// There are several reasons why this might have happened so we should check for those
+			if (responseCode == 400) {
+				throw(type='wolfnet.api.client.BadResponse',
+					message='Remote request was not successful.',
+					detail='The WolfNet API has indicated that the request was "bad" for an unknown reason.'
+					      & errorIDMessage & ' ' & errorMessage
+					);
+			}
+
+			// There was some other issue that we have not anticipated.
+			throw(type='wolfnet.api.client.UnknownResponse',
+				message='Remote request was not successful.',
+				details='The WolfNet plugin received an API response it is not prepared to deal with. '
+				       & 'Status: #responseCode# #responseText#; '
+				       & errorIDMessage & ' ' & errorMessage
+				);
+
+		}
 
 	}
 
 
 	/**
-	 * This method attempts to retrieve a token for use with an API request as authentication. If
-	 * possible it will retrieve the token from a persistent cache to minimize the number of API
-	 * requests that are made.
-	 * @param  {[type]} required string        key           [description]
-	 * @param  {[type]} boolean  force=false   [description]
-	 * @return {[type]}          [description]
+	 * This method is used to abstract a raw CF HTTP response from the API into a format that
+	 * we control, in this case an array. This way if the WP response changes we only have one place
+	 * in our code to change.
+	 *
+	 * Our structure currently contains for request and response data to make debugging easier.
+	 *
+	 * NOTE: This method expects that the response is an array at this point. If the response is not
+	 * and array it should have been caught by the validation method (validateResponse) and then
+	 * resulted in an exception.
+	 *
+	 * @param  array   response     The CF HTTP API response.
+	 * @param  string  uri          The request URI.
+	 * @param  string  method       The request HTTP verb.
+	 * @param  array   requestData  The request data.
+	 *
+	 * @return array                A uniform array of request and response data.
+	 *
 	 */
-	private any function getApiToken(required string key, boolean force=false)
-	{
-		// Unless forced to do otherwise, attempt to retrieve the token from a cache.
-		var token = arguments.force ? "" : retrieveApiTokenDataFromCache(arguments.key);
+	private function parseResponse(
+		required struct response,
+		required string uri,
+		required string method,
+		required struct requestData
+	) {
 
-		// If a token was not retrieved from the cache perform an API request to retrieve a new one.
-		if (token == "") {
-			var data = {
-				key = arguments.key,
-				v = getVersion(),
-			};
+		var formattedResponse = {
+			'requestUrl' = arguments.uri,
+			'requestMethod' = arguments.method,
+			'requestData' = arguments.requestData,
+			'responseStatusCode' = arguments.response.status_code,
+			'responseData' = arguments.response.filecontent,
+			'timestamp' = Now(),
+			'fromCache' = false,
+		};
 
-			var authResponse = rawRequest(argumentCollection={
-				key = arguments.key,
-				resource = '/core/auth',
-				method = "POST",
-				data = data,
-				skipAuth = true, // Since we don't have a valid token we don't want to attempt to include it.
-				});
+		if (arguments.response.mimetype == 'application/json') {
 
-			// TODO: Validate that the response includes the data we need.
-
-			token = updateApiTokenDataCache(arguments.key, authResponse.responseData.data).api_token;
+			try {
+				formattedResponse['responseData'] = deserializeJson(formattedResponse['responseData']);
+			}
+			catch (Any exception) {
+				throw(type="wolfnet.api.client.InvalidJsonResponse",
+					message="An error occurred while attempting to deserialize the JSON API response.",
+					extendedInfo=serializeJSON([formattedResponse, arguments.response])
+					);
+			}
 
 		}
 
-		return token;
+		return formattedResponse;
 
 	}
 
 
-	/**
-	 * This method retrieves a token from the application scope or an empty string if the token is
-	 * expired or none can be found.
-	 * @param  {string}  key  The client's API key.
-	 * @return {string}       [description]
-	 */
-	private string function retrieveApiTokenDataFromCache(required string key)
+	private void function log(required string type, required string message, any data)
 	{
-		ensureTokenCacheExists();
+		var logger = variables.logger ?: {};
 
-		var keyExists = structKeyExists(application[variables.appScopeKey].token, arguments.key);
-		var tokenData = keyExists ? application[variables.appScopeKey].token[arguments.key] : {};
-		var validData = structKeyExists(tokenData, "api_token") && structKeyExists(tokenData, "expiration");
-
-		// TODO: check if the token has or is about to become expired.
-
-		if (validData) {
-			var token = application[variables.appScopeKey].token[arguments.key].api_token;
-		} else {
-			return "";
-		}
-
-		return token;
-
-	}
-
-
-	/**
-	 * This method stores API authentication token data in a request persistent cache.
-	 * @param  {string}  key        The client's API key.
-	 * @param  {struct}  tokenData  Token data to be cached.
-	 * @return {struct}             Return the same token data for function chaining.
-	 */
-	private struct function updateApiTokenDataCache(required string key, required struct tokenData)
-	{
-		ensureTokenCacheExists();
-		application[variables.appScopeKey].token[arguments.key] = arguments.tokenData;
-
-		return arguments.tokenData;
-
-	}
-
-
-	/**
-	 * This method ensures that the necessary structures are available to perform token data caching.
-	 * @return {void}
-	 */
-	private void function ensureTokenCacheExists()
-	{
-
-		if (!structKeyExists(application, variables.appScopeKey)) {
-			application[variables.appScopeKey] = {};
-		}
-
-		if (!structKeyExists(application[variables.appScopeKey], "token")) {
-			application[variables.appScopeKey].token = {};
+		if (structCount(logger) > 0 && structKeyExists(logger, arguments.type)) {
+			logger[arguments.type](arguments.message, arguments.data ?: '');
 		}
 
 	}
