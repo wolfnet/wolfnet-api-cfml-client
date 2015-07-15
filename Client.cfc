@@ -54,7 +54,7 @@ component
 		variables.host = arguments.host;
 		variables.version = arguments.version;
 
-		variables.timeout = 500; // HTTP Timeout in milliseconds
+		variables.timeout = 5; // HTTP Timeout in seconds
 
 		return this;
 
@@ -347,11 +347,13 @@ component
 
 			try {
 				var responseData = deserializeJson(responseBody);
+
 			} catch (Any exception) {
 				throw(type="wolfnet.api.client.InvalidJsonResponse",
 					message="An error occurred while attempting to deserialize the JSON API response.",
-					extendedInfo=serializeJSON([formattedResponse, arguments.response])
+					extendedInfo=serializeJSON(arguments.response)
 					);
+
 			}
 
 			var metadata = responseData.metadata ?: {};
