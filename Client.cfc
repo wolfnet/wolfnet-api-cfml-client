@@ -54,7 +54,7 @@ component
 		variables.host = arguments.host;
 		variables.version = arguments.version;
 
-		variables.timeout = 500; // HTTP Timeout in milliseconds
+		variables.timeout = 5; // HTTP Timeout in seconds
 
 		return this;
 
