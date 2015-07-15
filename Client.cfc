@@ -206,6 +206,11 @@ component
 				}
 				break;
 
+			case "PUT":
+				httpObj.addParam(type="header", name="Content-Type", value="application/json");
+				httpObj.addParam(type="body", value=serializeJSON(arguments.data));
+				break;
+
 		}
 
 		// Append any header data to the HTTP object.
