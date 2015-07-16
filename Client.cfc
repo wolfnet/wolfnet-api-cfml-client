@@ -29,6 +29,15 @@ component
 	 */
 	property name="version";
 
+	/**
+	 * The number of seconds before HTTP requests should timeout.
+	 * @type numeric
+	 */
+	property name="timeout";
+
+	/**
+	 * An instance of a logger object which has the same interface as a LogBox logger.
+	 */
 	property name="logger";
 
 
@@ -48,13 +57,13 @@ component
 	 */
 	public Client function init(
 		string host="api.wolfnet.com",
-		numeric version=1
+		numeric version=1,
+		numeric timeout=5
 	) {
 
 		variables.host = arguments.host;
 		variables.version = arguments.version;
-
-		variables.timeout = 5; // HTTP Timeout in seconds
+		variables.timeout = arguments.timeout;
 
 		return this;
 
