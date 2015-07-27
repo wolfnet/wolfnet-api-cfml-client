@@ -354,6 +354,13 @@ component
 			var responseText = arguments.response.status_text ?: '';
 			var responseBody = arguments.response.filecontent ?: '{}';
 
+			if (responseCode == 408) {
+				throw(type="wolfnet.api.client.RequestTimeout",
+					message="The API request did not complete within the #variables.timeout# second time limit.",
+					extendedInfo=serializeJSON(arguments.response)
+					);
+			}
+
 			try {
 				var responseData = deserializeJson(responseBody);
 
