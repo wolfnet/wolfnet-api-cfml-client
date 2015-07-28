@@ -377,11 +377,11 @@ component
 			var errorCode = status.errorCode ?: '';
 			var statusCode = status.statusCode ?: '';
 			var errorID = status.error_id ?: '';
-			var extendedInfo = status.extendedInfo ?: '';
+			var message = status.message ?: '';
 
 			// TODO: These two variables are used repeatedly below. Could be done better.
 			var errorIDMessage = (errorID != '') ? 'API Error ID: ' & errorID : '';
-			var errorMessage = (extendedInfo != '') ? 'The API says: [' & extendedInfo & ']' : '';
+			var errorMessage = (message != '') ? 'The API says: [' & message & ']' : '';
 
 			// Here we will handle special API error responses.
 
@@ -394,7 +394,8 @@ component
 				throw(type='wolfnet.api.client.Unauthorized.API',
 					message='Remote request was not authorized.',
 					detail='The WolfNet API has responded that it did not receive a valid API token.'
-					      & errorIDMessage & ' ' & errorMessage
+					      & errorIDMessage & ' ' & errorMessage,
+					extendedInfo=serializeJSON(arguments.response)
 					);
 			}
 
@@ -408,7 +409,8 @@ component
 					message='User must be authenticated to view this information.',
 					detail='The WolfNet API has responded the data requested can only be viewed by '
 					      & 'a user that has authenticated their account. '
-					      & errorIDMessage & ' ' & errorMessage
+					      & errorIDMessage & ' ' & errorMessage,
+					extendedInfo=serializeJSON(arguments.response)
 					);
 			}
 
@@ -418,8 +420,19 @@ component
 					message='Remote request resulted in a [401 Unauthorized] response.',
 					detail='The WolfNet API has indicated that the request was made '
 					      & 'without properly authentication. '
-					      & errorIDMessage & ' ' & errorMessage
+					      & errorIDMessage & ' ' & errorMessage,
+					extendedInfo=serializeJSON(arguments.response)
 					);
+			}
+
+			// The API returned a 404 Not Found
+			if (responseCode == 404) {
+				throw(type='wolfnet.api.client.NotFound',
+					message='Remote request resulted in a [404 Not Found] response.',
+					detail='The WolfNet API has indicated that the requested resource could not be '
+					      & 'found. '
+					      & errorIDMessage & ' ' & errorMessage,
+					extendedInfo=serializeJSON(arguments.response))
 			}
 
 			// The API returned a 500 Internal Server Error
@@ -427,7 +440,8 @@ component
 				throw(type='wolfnet.api.client.InteralServerError',
 					message='Remote request resulted in a [500 Internal Server Error] response.',
 					detail='The WolfNet API appears to be unresponsive at this time.'
-					      & errorIDMessage & ' ' & errorMessage
+					      & errorIDMessage & ' ' & errorMessage,
+					extendedInfo=serializeJSON(arguments.response)
 					);
 			}
 
@@ -436,7 +450,8 @@ component
 				throw(type='wolfnet.api.client.ServerUnavailable',
 					message='Remote request resulted in a [503 Service Unavailable] response.',
 					detail='The WolfNet API appears to be unresponsive at this time but should be back soon.'
-					      & errorIDMessage & ' ' & errorMessage
+					      & errorIDMessage & ' ' & errorMessage,
+					extendedInfo=serializeJSON(arguments.response)
 					);
 			}
 
@@ -446,7 +461,8 @@ component
 					message='Remote request resulted in a [403 Forbidden] response.',
 					detail='An attempt was made to request data that is not available to the key that '
 					      & 'was used to authenticate the request.'
-					      & errorIDMessage & ' ' & errorMessage
+					      & errorIDMessage & ' ' & errorMessage,
+					extendedInfo=serializeJSON(arguments.response)
 					);
 			}
 
@@ -456,7 +472,8 @@ component
 				throw(type='wolfnet.api.client.BadResponse',
 					message='Remote request was not successful.',
 					detail='The WolfNet API has indicated that the request was "bad" for an unknown reason.'
-					      & errorIDMessage & ' ' & errorMessage
+					      & errorIDMessage & ' ' & errorMessage,
+					extendedInfo=serializeJSON(arguments.response)
 					);
 			}
 
@@ -465,7 +482,8 @@ component
 				message='Remote request was not successful.',
 				details='The WolfNet plugin received an API response it is not prepared to deal with. '
 				       & 'Status: #responseCode# #responseText#; '
-				       & errorIDMessage & ' ' & errorMessage
+				       & errorIDMessage & ' ' & errorMessage,
+				extendedInfo=serializeJSON(arguments.response)
 				);
 
 		}
