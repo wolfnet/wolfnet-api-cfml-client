@@ -377,11 +377,11 @@ component
 			var errorCode = status.errorCode ?: '';
 			var statusCode = status.statusCode ?: '';
 			var errorID = status.error_id ?: '';
-			var extendedInfo = status.extendedInfo ?: '';
+			var message = status.message ?: '';
 
 			// TODO: These two variables are used repeatedly below. Could be done better.
 			var errorIDMessage = (errorID != '') ? 'API Error ID: ' & errorID : '';
-			var errorMessage = (extendedInfo != '') ? 'The API says: [' & extendedInfo & ']' : '';
+			var errorMessage = (message != '') ? 'The API says: [' & message & ']' : '';
 
 			// Here we will handle special API error responses.
 
