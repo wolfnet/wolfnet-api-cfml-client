@@ -425,6 +425,16 @@ component
 					);
 			}
 
+			// The API returned a 404 Not Found
+			if (responseCode == 404) {
+				throw(type='wolfnet.api.client.NotFound',
+					message='Remote request resulted in a [404 Not Found] response.',
+					detail='The WolfNet API has indicated that the requested resource could not be '
+					      & 'found. '
+					      & errorIDMessage & ' ' & errorMessage,
+					extendedInfo=serializeJSON(arguments.response))
+			}
+
 			// The API returned a 500 Internal Server Error
 			if (responseCode == 500) {
 				throw(type='wolfnet.api.client.InteralServerError',
