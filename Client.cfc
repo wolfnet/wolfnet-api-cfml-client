@@ -165,12 +165,7 @@ component
 		this.log('info', 'Starting API request.', arguments);
 
 		// Make sure the method is valid.
-		if (!isValidMethod(arguments.method)) {
-			throw(type="wolfnet.api.client.InvalidMethod",
-				message="Invalid method provided for API request.",
-				extendedInfo=serializeJSON(arguments)
-				);
-		}
+		validateMethod(arguments.method);
 
 		try {
 
@@ -310,12 +305,16 @@ component
 	 * @return {Boolean}         Is the method valid? true/false
 	 *
 	 */
-	private boolean function isValidMethod(required string method)
+	private void function validateMethod(required string method)
 	{
-		if (listFindNoCase('GET,POST,PUT,DELETE', arguments.method) == 0) {
-			return false;
-		} else {
-			return true;
+		var validMethods = 'GET,POST,PUT,DELETE';
+
+		if (listFindNoCase(validMethods, arguments.method) == 0) {
+			throw(type="wolfnet.api.client.InvalidMethod",
+				message="API Method Invalid",
+				detail="The method used for the API request is not valid. Valid methods include #validMethods#.",
+				extendedInfo=arguments.method
+				);
 		}
 
 	}
