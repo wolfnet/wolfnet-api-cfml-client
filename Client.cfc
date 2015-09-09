@@ -477,7 +477,7 @@ component
 			throw(type='wolfnet.api.client.Resource.Exists',
 				message='API Resource Already Exists',
 				detail='The WolfNet API has responded that the resource that was attempting to '
-				      & 'to be created already exists.'
+				      & 'be created already exists.'
 				      & errorIDMessage & ' ' & errorMessage,
 				extendedInfo=serializeJSON(arguments.response)
 				);
