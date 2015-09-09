@@ -474,10 +474,10 @@ component
 		 * The API has indicated that the email address used to attempt an account creation already exists.
 		 */
 		if (errorCode == 'Res1001' || statusCode == 'Res1001') {
-			throw(type='wolfnet.api.client.Registration.EmailExists',
-				message='API Email Already In Use',
-				detail='The WolfNet API has responded that the email address that was used to '
-				      & 'attempt an account creation is already in use. '
+			throw(type='wolfnet.api.client.Resource.Exists',
+				message='API Resource Already Exists',
+				detail='The WolfNet API has responded that the resource that was attempting to '
+				      & 'to be created already exists.'
 				      & errorIDMessage & ' ' & errorMessage,
 				extendedInfo=serializeJSON(arguments.response)
 				);
