@@ -529,7 +529,7 @@ component
 
 		// The API returned a 500 Internal Server Error
 		if (responseCode == 500) {
-			throw(type='wolfnet.api.client.InteralServerError',
+			throw(type='wolfnet.api.client.InternalServerError',
 				message='API 500 Internal Server Error',
 				detail='The WolfNet API appears to be unresponsive at this time. '
 				      & errorIDMessage & ' ' & errorMessage,
